@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <errno.h>
 
 #define REQUIRED_ARGC 3
 #define PORT_POS 1
@@ -65,10 +66,10 @@ int main (int argc, char *argv [])
         errexit ("cannot listen on port %s\n", argv [PORT_POS]);
     printf("%u\n", addrlen);
     /* accept a connection */
-    while(1){
+    while (1) {
     sd2 = accept (sd,&addr,&addrlen);
     if (sd2 < 0)
-        errexit ("error accepting connection", NULL);
+        errexit ("error accepting connection%s", strerror(errno));
     printf("%u\n", addrlen);
     /* write message to the connection */
 
@@ -83,12 +84,13 @@ int main (int argc, char *argv [])
       fprintf (stdout,"%s\n",buffer);
     }
     else if (option[0]== 'G') {
-      
+
     }
     printf("option:%c\n",option[0] );
-  }
     /* close connections and exit */
-    close (sd);
+
     close (sd2);
+    }
+    close (sd);
     exit (0);
 }

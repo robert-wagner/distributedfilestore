@@ -33,20 +33,21 @@ int main (int argc, char *argv [])
     struct sockaddr_in sin;
     struct hostent *hinfo;
     struct protoent *protoinfo;
-    //char buffer [BUFLEN];
-    int sd;
+    char buffer [BUFLEN];
+    int sd, ret;
     int hostnameflag = 0;
     int portflag = 0;
     int localfileflag = 0;
     int remotefileflag = 0;
     int createflag = 0;
     int getflag = 0;
+    int viewflag = 0;
     char* hostname;
     char* portno;
     char* localfilename;
     char* remotefilename;
     FILE* filetowrite;
-    char currentarg = getopt(argc, argv, "h:p:cgdF:f:");
+    char currentarg = getopt(argc, argv, "h:p:cgdvF:f:");
     while (currentarg!=-1) {
       switch (currentarg ) {
         case 'h':
@@ -78,7 +79,7 @@ int main (int argc, char *argv [])
           remotefileflag = 1;
           break;
         case 'c':
-          if(getflag){
+          if(getflag||viewflag){
             errexit("Cannot get and push at the same time", NULL);
           }
           createflag = 1;
@@ -89,6 +90,12 @@ int main (int argc, char *argv [])
           }
           getflag = 1;
           break;
+        case 'v':
+          if (createflag) {
+            errexit("Cannot get and push at the same time", NULL);
+          }
+          viewflag = 1;
+          break;
       }
       currentarg = getopt(argc, argv, "h:p:cgdvF:f:");
     }
@@ -98,7 +105,7 @@ int main (int argc, char *argv [])
     if (!portflag) {
       errexit("No port specified", NULL);
     }
-    if ((createflag||getflag)&&!remotefileflag) {
+    if ((createflag||getflag||viewflag)&&!remotefileflag) {
       errexit("No remote file specified", NULL);
     }
     if ((createflag||getflag)&&!localfileflag) {
@@ -129,21 +136,40 @@ int main (int argc, char *argv [])
     /* connect the socket */
     if (connect (sd, (struct sockaddr *)&sin, sizeof(sin)) < 0)
         errexit ("cannot connect", NULL);
-    filetowrite = fopen(localfilename,"rb");
-    if(!filetowrite){
-        errexit("Could not open file", NULL);
+    if (createflag) {
+      filetowrite = fopen(localfilename,"rb");
+      if(!filetowrite){
+          errexit("Could not open file", NULL);
+      }
+      fseek(filetowrite, 0, SEEK_END);
+      long fsize = ftell(filetowrite);
+      fseek(filetowrite, 0, SEEK_SET);  //same as rewind(f);
+      char *string = malloc(fsize + 1);
+      fread(string, fsize, 1, filetowrite);
+      fclose(filetowrite);
+      string[fsize] = 0;
+      if (write (sd,"C",1) < 0)
+          errexit ("error writing message: %s", localfilename);
+      if (write (sd,string,strlen (string)) < 0)
+          errexit ("error writing message: %s", localfilename);
+    } else if (getflag||viewflag) {
+          memset (buffer,0x0,BUFLEN);
+          ret = read (sd,buffer,BUFLEN - 1);
+          while (ret>=BUFLEN-1) {
+              if (viewflag) {
+                fprintf (stdout,"%s",buffer);
+              }
+              memset (buffer,0x0,BUFLEN);
+              ret = read (sd,buffer,BUFLEN - 1);
+          }
+
+          if (ret < 0)
+              errexit ("reading error",NULL);
+          if (viewflag) {
+            fprintf (stdout,"%s\n",buffer);
+          }
     }
-    fseek(filetowrite, 0, SEEK_END);
-    long fsize = ftell(filetowrite);
-    fseek(filetowrite, 0, SEEK_SET);  //same as rewind(f);
-    char *string = malloc(fsize + 1);
-    fread(string, fsize, 1, filetowrite);
-    fclose(filetowrite);
-    string[fsize] = 0;
-    if (write (sd,"C",1) < 0)
-        errexit ("error writing message: %s", localfilename);
-    if (write (sd,string,strlen (string)) < 0)
-        errexit ("error writing message: %s", localfilename);
+
 
 
     /* close & exit */
