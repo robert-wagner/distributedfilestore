@@ -38,6 +38,7 @@ int main (int argc, char *argv [])
     unsigned int addrlen;
     int sd, sd2, ret;
     char buffer [BUFLEN];
+    FILE* filetowrite;
     if (argc != REQUIRED_ARGC)
         usage (argv [0]);
 
@@ -75,6 +76,7 @@ int main (int argc, char *argv [])
 
     /* snarf whatever server provides and print it */
     char option[2];
+    char filenamelength[1];
     ret = read(sd2,option,1);
     if (option[0]=='C') {
       memset (buffer,0x0,BUFLEN);
@@ -83,8 +85,33 @@ int main (int argc, char *argv [])
           errexit ("reading error",NULL);
       fprintf (stdout,"%s\n",buffer);
     }
-    else if (option[0]== 'G') {
-
+    else if ((option[0]== 'G')||(option[0]== 'V')) {
+        memset (filenamelength, 0x0, 1);
+        ret = read(sd2,filenamelength,1);
+        printf("%u\n", (unsigned int)filenamelength[0]);
+        char filename[(unsigned int)filenamelength[0]+1];
+        memset(filename,0x0,filenamelength[0]+1);
+        ret = read(sd2,filename,((unsigned int)filenamelength[0]));
+        printf("%s\n",filename );
+        filetowrite = fopen(filename,"rb");
+        if(!filetowrite){
+            errexit("Could not open file", NULL);
+        }
+        fseek(filetowrite, 0, SEEK_END);
+        long fsize = ftell(filetowrite);
+        fseek(filetowrite, 0, SEEK_SET);  //same as rewind(f);
+        char *string = malloc(fsize + 1);
+        fread(string, fsize, 1, filetowrite);
+        fclose(filetowrite);
+        string[fsize] = 0;
+        printf("ready to write message%s\n",string );
+        int writevalue = write (sd2,string,strlen (string));
+        printf("wrote\n");
+        if (writevalue < 0){
+            printf("write failed\n");
+            errexit ("error writing message%s", string);
+        }
+        printf("wrote message:%s\n",string );
     }
     printf("option:%c\n",option[0] );
     /* close connections and exit */

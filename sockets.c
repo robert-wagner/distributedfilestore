@@ -34,6 +34,7 @@ int main (int argc, char *argv [])
     struct hostent *hinfo;
     struct protoent *protoinfo;
     char buffer [BUFLEN];
+    char filenamelength[1];
     int sd, ret;
     int hostnameflag = 0;
     int portflag = 0;
@@ -136,6 +137,7 @@ int main (int argc, char *argv [])
     /* connect the socket */
     if (connect (sd, (struct sockaddr *)&sin, sizeof(sin)) < 0)
         errexit ("cannot connect", NULL);
+    filenamelength[0] = strlen(remotefilename);
     if (createflag) {
       filetowrite = fopen(localfilename,"rb");
       if(!filetowrite){
@@ -153,9 +155,21 @@ int main (int argc, char *argv [])
       if (write (sd,string,strlen (string)) < 0)
           errexit ("error writing message: %s", localfilename);
     } else if (getflag||viewflag) {
-          memset (buffer,0x0,BUFLEN);
+          if (getflag) {
+              if (write (sd,"G",1) < 0)
+                  errexit ("error writing message: %s", localfilename);
+          } else if (viewflag) {
+              if (write (sd,"V",1) < 0)
+                  errexit ("error writing message: %s", localfilename);
+          }
+          if (write (sd,filenamelength,1) < 0)
+              errexit ("error writing message: %s", localfilename);
+          if (write (sd,remotefilename,strlen(remotefilename)) < 0)
+              errexit ("error writing message: %s", localfilename);
+          memset(buffer,0x0,BUFLEN);
           ret = read (sd,buffer,BUFLEN - 1);
           while (ret>=BUFLEN-1) {
+              printf("read once\n");
               if (viewflag) {
                 fprintf (stdout,"%s",buffer);
               }
@@ -165,8 +179,9 @@ int main (int argc, char *argv [])
 
           if (ret < 0)
               errexit ("reading error",NULL);
+          printf("read at all\n");
           if (viewflag) {
-            fprintf (stdout,"%s\n",buffer);
+            fprintf (stdout,"%s",buffer);
           }
     }
 
